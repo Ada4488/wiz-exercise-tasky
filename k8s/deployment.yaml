@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tasky, namespace: tasky }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tasky } }
+  template:
+    metadata: { labels: { app: tasky } }
+    spec:
+      serviceAccountName: tasky-sa
+      containers:
+      - name: tasky
+        image: REPLACED_BY_CI
+        ports: [{ containerPort: 8080 }]
+        env:
+          - name: MONGODB_URI
+            valueFrom:
+              secretKeyRef: { name: mongo, key: MONGODB_URI }

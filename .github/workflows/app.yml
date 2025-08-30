@@ -1,0 +1,66 @@
+name: app
+on:
+  push:
+    branches: [ main ]
+    paths: ["app/**","Dockerfile","k8s/**"]
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: read }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: ECR login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push image
+        run: |
+          ECR=${{ steps.ecr.outputs.registry }}
+          REPO=$(aws ecr describe-repositories --repository-names wiz-tasky --query 'repositories[0].repositoryUri' --output text || echo "$ECR/wiz-tasky")
+          docker build -t "$REPO:${{ github.sha }}" .
+          docker push "$REPO:${{ github.sha }}"
+          echo "IMAGE=$REPO:${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: (Optional) Trivy scan (non-blocking)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          format: table
+          exit-code: '0'
+
+      - name: Update kubeconfig
+        run: |
+          CLUSTER=$(terraform -chdir=infra/main output -raw cluster_name)
+          aws eks update-kubeconfig --name "$CLUSTER" --region "${{ secrets.AWS_REGION }}"
+
+      - name: Create namespace & RBAC
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/rbac-admin.yaml
+
+      - name: Create Mongo URI Secret (uses VM private IP)
+        run: |
+          MONGO_IP=$(terraform -chdir=infra/main output -raw mongo_private_ip)
+          kubectl -n tasky delete secret mongo --ignore-not-found
+          kubectl -n tasky create secret generic mongo \
+            --from-literal=MONGODB_URI="mongodb://wiz:WizPass123!@${MONGO_IP}:27017/?authSource=admin"
+
+      - name: Deploy app (image injected)
+        run: |
+          sed "s#REPLACED_BY_CI#${IMAGE}#g" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/ingress.yaml
+          kubectl -n tasky rollout status deploy/tasky --timeout=180s
+
+      - name: Show ingress
+        run: kubectl -n tasky get ingress tasky-ing -o wide
