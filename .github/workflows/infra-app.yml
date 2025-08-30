@@ -117,3 +117,4 @@ jobs:
 
       - name: Show ingress
         run: kubectl -n tasky get ingress tasky-ing -o wide
+
