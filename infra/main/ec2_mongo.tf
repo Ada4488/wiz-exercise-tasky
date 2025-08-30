@@ -6,13 +6,31 @@ resource "aws_security_group" "mongo" {
   name   = "${var.name_prefix}-mongo-sg"
   vpc_id = module.vpc.vpc_id
 
-  ingress { from_port=22, to_port=22, protocol="tcp", cidr_blocks=["0.0.0.0/0"] }
+  # Allow SSH from anywhere
   ingress {
-    from_port=27017, to_port=27017, protocol="tcp",
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow MongoDB access from private subnets
+  ingress {
+    from_port   = 27017
+    to_port     = 27017
+    protocol    = "tcp"
     cidr_blocks = concat(module.vpc.private_subnets_cidr_blocks)
   }
-  egress { from_port=0, to_port=0, protocol="-1", cidr_blocks=["0.0.0.0/0"] }
+
+  # Allow all egress
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
+
 
 resource "aws_key_pair" "kp" {
   key_name   = "${var.name_prefix}-kp"
@@ -23,11 +41,11 @@ resource "aws_key_pair" "kp" {
 resource "aws_iam_role" "ec2_role" {
   name = "${var.name_prefix}-mongo-role"
   assume_role_policy = jsonencode({
-    Version="2012-10-17", Statement=[{Effect="Allow",Principal={Service="ec2.amazonaws.com"},Action="sts:AssumeRole"}]
+    Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" }, Action = "sts:AssumeRole" }]
   })
 }
 resource "aws_iam_role_policy_attachment" "admin" {
-  role = aws_iam_role.ec2_role.name
+  role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 resource "aws_iam_instance_profile" "ec2_profile" {

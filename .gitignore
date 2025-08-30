@@ -17,8 +17,18 @@ vendor/
 
 
 .idea
+.idea/
 setup_test.sh
 Makefile
 deploy
 test
 tmp
+.vscode/
+.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.crash
+.terraform/
+.terraform.lock.hcl
