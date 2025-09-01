@@ -1,5 +1,6 @@
-data "aws_ssm_parameter" "ubuntu2004_ami" {
-  name = "/aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id"
+# Use Ubuntu 18.04 (1+ year outdated) as required by exercise
+data "aws_ssm_parameter" "ubuntu1804_ami" {
+  name = "/aws/service/canonical/ubuntu/server/18.04/stable/current/amd64/hvm/ebs-gp2/ami-id"
 }
 
 resource "aws_security_group" "mongo" {
@@ -37,16 +38,42 @@ resource "aws_key_pair" "kp" {
   public_key = var.ec2_ssh_public_key
 }
 
-# Overly permissive instance role (as required)
+# Overly permissive instance role (as required by exercise)
 resource "aws_iam_role" "ec2_role" {
   name = "${var.name_prefix}-mongo-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" }, Action = "sts:AssumeRole" }]
   })
 }
+
+# AdministratorAccess policy (overly permissive as required)
 resource "aws_iam_role_policy_attachment" "admin" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# Additional overly permissive policy for VM creation (as required)
+resource "aws_iam_role_policy" "vm_creation" {
+  name = "${var.name_prefix}-vm-creation-policy"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "iam:*",
+          "s3:*",
+          "eks:*",
+          "rds:*",
+          "lambda:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.name_prefix}-mongo-profile"
@@ -60,7 +87,7 @@ EOT
 }
 
 resource "aws_instance" "mongo" {
-  ami                    = data.aws_ssm_parameter.ubuntu2004_ami.value
+  ami                    = data.aws_ssm_parameter.ubuntu1804_ami.value
   instance_type          = "t3.small"
   subnet_id              = module.vpc.public_subnets[0]
   vpc_security_group_ids = [aws_security_group.mongo.id]
@@ -75,7 +102,7 @@ resource "aws_instance" "mongo" {
     apt-get update -y
     apt-get install -y gnupg curl awscli
     wget -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
-    echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
+    echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
     apt-get update -y && apt-get install -y mongodb-org=4.4.22 mongodb-org-server=4.4.22 mongodb-org-shell=4.4.22
     sed -i 's/^  bindIp:.*$/  bindIp: 0.0.0.0/' /etc/mongod.conf
     echo -e "security:\n  authorization: enabled" >> /etc/mongod.conf

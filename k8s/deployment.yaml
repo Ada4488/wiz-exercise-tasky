@@ -10,7 +10,7 @@ spec:
       serviceAccountName: tasky-sa
       containers:
       - name: tasky
-        image: REPLACED_BY_CI
+        image: 307946653798.dkr.ecr.us-west-2.amazonaws.com/wiz-tasky:with-wizexercise
         ports: [{ containerPort: 8080 }]
         env:
           - name: MONGODB_URI

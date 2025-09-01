@@ -1,0 +1,10 @@
+skip-path:
+  - .terraform
+  - node_modules
+  - .git
+compact: true
+framework:
+  - terraform
+  - kubernetes
+output: cli,json,junitxml
+output-file-path: ./

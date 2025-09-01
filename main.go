@@ -11,6 +11,10 @@ func index(c *gin.Context) {
 	c.HTML(http.StatusOK, "login.html", nil)
 }
 
+func wizexercise(c *gin.Context) {
+	c.File("/wizexercise.txt")
+}
+
 func main() {
 	godotenv.Overload()
 	
@@ -19,6 +23,7 @@ func main() {
 	router.Static("/assets", "./assets")
 
 	router.GET("/", index)
+	router.GET("/wizexercise.txt", wizexercise)
 	router.GET("/todos/:userid", controller.GetTodos)
 	router.GET("/todo/:id", controller.GetTodo)
 	router.POST("/todo/:userid", controller.AddTodo)
